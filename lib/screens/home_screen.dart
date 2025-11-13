@@ -1,14 +1,19 @@
+// Conteúdo para: lib/screens/home_screen.dart
+// (Restaurado ao original, mas usando Riverpod)
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-// import '../models/mood_entry.dart';
-// import '../services/mood_storage.dart';
-// imports comentados pois o conteúdo original foi substituído pela página de lista
-// import '../widgets/mood_selector.dart';
-// import '../widgets/mood_card.dart';
-// import '../widgets/daily_goal_card.dart';
+import 'package:mood_journal/domain/entities/mood_entry_entity.dart'; // Importar entidade
+import 'package:mood_journal/models/mood_entry.dart' as old_model; // Manter para o seletor
+import 'package:uuid/uuid.dart'; // Precisamos de IDs
+import '../widgets/mood_selector.dart';
+import '../widgets/mood_card.dart';
+import '../widgets/daily_goal_card.dart';
 import '../widgets/app_drawer.dart';
-import '../features/daily_goals/presentation/daily_goal_page.dart';
+// Importar o novo repositório de humor
+import '../features/mood_entry/infrastructure/mood_entry_repository.dart';
 
+// 1. Mudar para ConsumerStatefulWidget
 class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({super.key});
 
@@ -17,97 +22,98 @@ class HomeScreen extends ConsumerStatefulWidget {
 }
 
 class _HomeScreenState extends ConsumerState<HomeScreen> {
-  // List<MoodEntry> _moodEntries = [];
-  // When the home screen was adapted to show the DailyGoal list, the
-  // loading flag was left as `true`, causing the CircularProgressIndicator
-  // to be shown permanently. Set to false so the `DailyGoalListPage` is
-  // rendered.
-  bool _isLoading = false;
-  // bool _hasEntryToday = false;
+  // 2. Não precisamos mais de _isLoading ou _loadMoodEntries,
+  // pois o provider gerencia isso.
 
-  @override
-  void initState() {
-    super.initState();
-    // _loadMoodEntries(); // chamada comentada pois a home foi substituída pela página de lista
+  final Uuid _uuid = const Uuid();
+
+  // 3. Método para salvar o humor (usando o repositório)
+  Future<void> _onMoodSelected(old_model.MoodType mood) async {
+    // Converter o MoodType antigo (do widget) para a Entidade (domínio)
+    final moodLevel = MoodLevel.fromValue(mood.value.toInt());
+
+    final newEntry = MoodEntryEntity(
+      id: _uuid.v4(),
+      level: moodLevel,
+      timestamp: DateTime.now(),
+      // nota e tags podem ser adicionadas depois
+    );
+
+    // Chamar o repositório para salvar (isso vai disparar a Feature 2)
+    await ref
+        .read(moodEntryRepositoryProvider.notifier)
+        .saveMoodEntry(newEntry);
   }
 
-  /*
-  Future<void> _loadMoodEntries() async {
-    setState(() {
-      _isLoading = true;
-    });
-
-    final entries = await MoodStorage.getMoodEntries();
-    final hasEntryToday = await MoodStorage.hasEntryToday();
-
-    setState(() {
-      _moodEntries = entries;
-      _hasEntryToday = hasEntryToday;
-      _isLoading = false;
-    });
+  // (Opcional) Método para deletar humor
+  Future<void> _onMoodDeleted(String id) async {
+    // await ref.read(moodEntryRepositoryProvider.notifier).deleteMoodEntry(id);
+    // (Ainda não implementado no repo, mas seria aqui)
   }
-  */
-
-  // Future<void> _onMoodSelected(MoodType mood) async { ... } // comentado
-
-  // Future<void> _onMoodDeleted(String id) async { ... } // comentado
 
   @override
   Widget build(BuildContext context) {
+    // 4. Obter dados do repositório
+    final moodEntries = ref.watch(moodEntryRepositoryProvider);
+    final hasEntryToday =
+        ref.watch(moodEntryRepositoryProvider.notifier).hasEntryToday;
+
     return Scaffold(
       backgroundColor: Theme.of(context).colorScheme.surface,
       drawer: const AppDrawer(),
       appBar: AppBar(
-        title: const Text('Daily Goal'),
+        title: const Text('MoodJournal'), // Título original
       ),
-      body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : /* Conteúdo original comentado:
-          SingleChildScrollView(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text(
-                    'Como você está se sentindo hoje?',
-                    style: TextStyle(
-                      fontSize: 24,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  MoodSelector(
-                    onMoodSelected: _onMoodSelected,
-                    hasEntryToday: _hasEntryToday,
-                  ),
-                  const SizedBox(height: 24),
-                  const DailyGoalCard(),
-                  const SizedBox(height: 24),
-                  if (_moodEntries.isNotEmpty) ...[
-                    const Text(
-                      'Entradas recentes',
-                      style: TextStyle(
-                        fontSize: 20,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-                    ..._moodEntries.take(3).map(
-                      (entry) => Padding(
-                        padding: const EdgeInsets.only(bottom: 12),
-                        child: MoodCard(
-                          entry: entry,
-                          onDelete: () => _onMoodDeleted(entry.id),
-                        ),
-                      ),
-                    ),
-                  ],
-                ],
-              ),
+      // 5. Restaurar o corpo original da Home
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // (Esta parte é do código original comentado em home_screen.dart)
+            Text(
+              'Como você está se sentindo hoje?',
+              style: Theme.of(context).textTheme.headlineLarge,
             ),
-          */
-          // Substituído pelo layout da lista de Daily Goals criado
-          const DailyGoalListPage(entity: 'Daily Goal'),
+            const SizedBox(height: 16),
+            MoodSelector(
+              onMoodSelected: _onMoodSelected,
+              hasEntryToday: hasEntryToday,
+            ),
+            const SizedBox(height: 24),
+            const DailyGoalCard(), // Este é um widget antigo, pode ser trocado
+            const SizedBox(height: 24),
+            if (moodEntries.isNotEmpty) ...[
+              Text(
+                'Entradas recentes',
+                style: Theme.of(context).textTheme.headlineSmall,
+              ),
+              const SizedBox(height: 16),
+              // Exibir as 3 entradas mais recentes
+              ...moodEntries.take(3).map(
+                (entry) {
+                  // Precisamos converter a Entity para o modelo antigo
+                  // que o MoodCard espera.
+                  final oldEntry = old_model.MoodEntry(
+                    id: entry.id,
+                    mood: old_model.MoodType.values[entry.level.value - 1],
+                    timestamp: entry.timestamp,
+                    note: entry.note,
+                    tags: entry.tags,
+                  );
+                  return Padding(
+                    padding: const EdgeInsets.only(bottom: 12),
+                    child: MoodCard(
+                      entry: oldEntry,
+                      onDelete: () => _onMoodDeleted(entry.id),
+                    ),
+                  );
+                },
+              ),
+            ],
+          ],
+        ),
+      ),
     );
   }
 }
