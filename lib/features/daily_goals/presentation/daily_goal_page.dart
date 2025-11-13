@@ -1,21 +1,27 @@
-import 'package:flutter/material.dart';
-import 'daily_goal_entity_form_dialog.dart';
+// Conteúdo para: lib/features/daily_goals/presentation/daily_goal_page.dart
+// (Totalmente modificado para usar Riverpod e dados reais)
 
-class DailyGoalListPage extends StatefulWidget {
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:mood_journal/domain/entities/daily_goal_entity.dart';
+import 'daily_goal_entity_form_dialog.dart';
+import '../infrastructure/daily_goal_repository.dart'; // Importa o novo repositório
+
+// 1. Mudar de StatefulWidget para ConsumerStatefulWidget
+class DailyGoalListPage extends ConsumerStatefulWidget {
   const DailyGoalListPage({super.key, required this.entity});
 
   final String entity;
 
   @override
-  State<DailyGoalListPage> createState() => _DailyGoalListPageState();
+  ConsumerState<DailyGoalListPage> createState() => _DailyGoalListPageState();
 }
 
-class _DailyGoalListPageState extends State<DailyGoalListPage>
+class _DailyGoalListPageState extends ConsumerState<DailyGoalListPage>
     with SingleTickerProviderStateMixin {
-  // Simulação de estado local (não persistente)
   bool showTip = true;
   bool showTutorial = false;
-  final List<dynamic> items = []; // Layout-only: sem persistência
+  // 2. REMOVER a lista mockada: final List<dynamic> items = [];
 
   late final AnimationController _fabController;
   late final Animation<double> _fabScale;
@@ -30,7 +36,13 @@ class _DailyGoalListPageState extends State<DailyGoalListPage>
     _fabScale = Tween<double>(begin: 1.0, end: 1.15).animate(
       CurvedAnimation(parent: _fabController, curve: Curves.elasticInOut),
     );
-    if (showTip) _fabController.repeat(reverse: true);
+
+    // 3. Checar se a lista está vazia após o build inicial
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted && ref.read(dailyGoalRepositoryProvider).isEmpty) {
+        if (showTip) _fabController.repeat(reverse: true);
+      }
+    });
   }
 
   @override
@@ -41,17 +53,23 @@ class _DailyGoalListPageState extends State<DailyGoalListPage>
 
   @override
   Widget build(BuildContext context) {
+    // 4. Obter a lista real do provider
+    final List<DailyGoalEntity> items = ref.watch(dailyGoalRepositoryProvider);
+
     return Scaffold(
+      appBar: AppBar(
+        title: Text(widget.entity),
+      ),
       body: Stack(
         children: [
           SafeArea(
             child: Padding(
               padding: const EdgeInsets.all(16.0),
-              child: _buildBody(context),
+              // 5. Passar os itens reais para o _buildBody
+              child: _buildBody(context, items),
             ),
           ),
-
-          // Overlay de tutorial central
+          // ... (O resto do Stack com o tutorial overlay pode continuar o mesmo)
           if (showTutorial)
             Positioned.fill(
               child: Container(
@@ -86,14 +104,13 @@ class _DailyGoalListPageState extends State<DailyGoalListPage>
               ),
             ),
 
-          // Opt-out button positioned bottom-left
+          // ... (O resto dos Positioned com o opt-out e tip bubble)
           Positioned(
             left: 16,
             bottom: MediaQuery.of(context).padding.bottom + 12,
             child: TextButton(
               onPressed: () => setState(() {
                 showTip = false;
-                // stop and reset FAB animation when tip is dismissed
                 _fabController.stop();
                 _fabController.reset();
               }),
@@ -103,9 +120,7 @@ class _DailyGoalListPageState extends State<DailyGoalListPage>
               ),
             ),
           ),
-
-          // Tip bubble positioned above FAB (bottom-right)
-          if (showTip)
+          if (showTip && items.isEmpty) // Só mostrar dica se a lista estiver vazia
             Positioned(
               right: 16,
               bottom: MediaQuery.of(context).padding.bottom + 72,
@@ -151,20 +166,27 @@ class _DailyGoalListPageState extends State<DailyGoalListPage>
             ),
         ],
       ),
-      // Standard FAB at bottom-right with subtle scale animation
+      // 6. Atualizar o FAB OnPressed
       floatingActionButton: ScaleTransition(
         scale: _fabScale,
         child: FloatingActionButton(
           onPressed: () async {
-            // Abre a dialog para criar/editar uma DailyGoalEntity
             final result = await showDailyGoalEntityFormDialog(context);
-            if (result != null) {
-              setState(() {
-                // insere no topo da lista (layout-only)
-                items.insert(0, result);
-                // Não ativar o tutorial automaticamente ao confirmar
-                // (evita abrir outra dialog/overlay inesperada)
-              });
+
+            if (result != null && mounted) {
+              // 7. Chamar o repositório para salvar a meta
+              await ref
+                  .read(dailyGoalRepositoryProvider.notifier)
+                  .upsertGoal(result);
+
+              // Parar a animação do FAB se este foi o primeiro item
+              if (items.length == 1) {
+                _fabController.stop();
+                _fabController.reset();
+                setState(() {
+                  showTip = false;
+                });
+              }
             }
           },
           child: const Icon(Icons.add),
@@ -174,8 +196,10 @@ class _DailyGoalListPageState extends State<DailyGoalListPage>
     );
   }
 
-  Widget _buildBody(BuildContext context) {
+  // 8. Atualizar o _buildBody para aceitar a lista real
+  Widget _buildBody(BuildContext context, List<DailyGoalEntity> items) {
     if (items.isEmpty) {
+      // O estado vazio (igual ao original)
       return Center(
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -183,7 +207,6 @@ class _DailyGoalListPageState extends State<DailyGoalListPage>
             Icon(
               Icons.inbox,
               size: 72,
-              // withOpacity is deprecated; use withAlpha to set opacity in 0-255 range
               color: Theme.of(context)
                   .colorScheme
                   .onSurface
@@ -206,11 +229,33 @@ class _DailyGoalListPageState extends State<DailyGoalListPage>
       );
     }
 
-    // Caso a lista não esteja vazia (layout-only, sem dados reais)
+    // 9. Atualizar a lista para mostrar dados reais
     return ListView.separated(
-      itemBuilder: (context, index) => ListTile(
-        title: Text('${widget.entity} #${index + 1}'),
-      ),
+      itemBuilder: (context, index) {
+        final goal = items[index];
+        return ListTile(
+          leading: Text(goal.type.icon, style: const TextStyle(fontSize: 24)),
+          title: Text(goal.type.description),
+          subtitle: Text(
+              'Progresso: ${goal.currentValue} / ${goal.targetValue}'),
+          trailing: goal.isAchieved
+              ? Icon(Icons.check_circle,
+                  color: Theme.of(context).colorScheme.primary)
+              : null,
+          onTap: () async {
+            // 10. Chamar a dialog para EDIÇÃO
+            final updatedGoal = await showDailyGoalEntityFormDialog(
+              context,
+              initial: goal, // Passa a meta existente para edição
+            );
+            if (updatedGoal != null && mounted) {
+              await ref
+                  .read(dailyGoalRepositoryProvider.notifier)
+                  .upsertGoal(updatedGoal);
+            }
+          },
+        );
+      },
       separatorBuilder: (_, __) => const Divider(height: 1),
       itemCount: items.length,
     );
