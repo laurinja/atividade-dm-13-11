@@ -85,3 +85,6 @@ lib/
 - [ ] Implementar exportação de dados
 - [ ] Adicionar temas personalizáveis
 
+
+## Implementado por **Laura Bareto**
+laurabareto@alunos.utfpr.edu.br
