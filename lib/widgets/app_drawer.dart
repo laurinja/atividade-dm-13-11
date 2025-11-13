@@ -5,6 +5,8 @@ import '../providers/profile_provider.dart';
 import '../widgets/avatar_widget.dart';
 import '../screens/profile_edit_screen.dart';
 import '../screens/mood_history_screen.dart';
+// ADIÇÃO: Importar a página de metas diárias
+import '../features/daily_goals/presentation/daily_goal_page.dart';
 
 class AppDrawer extends ConsumerWidget {
   const AppDrawer({super.key});
@@ -99,6 +101,23 @@ class AppDrawer extends ConsumerWidget {
                       context,
                       MaterialPageRoute(
                         builder: (context) => const MoodHistoryScreen(),
+                      ),
+                    );
+                  },
+                ),
+
+                // ADIÇÃO Novo item de menu para Metas Diárias
+                _buildDrawerItem(
+                  context,
+                  icon: Icons.flag_outlined, // Ícone de meta
+                  title: 'Metas Diárias',
+                  onTap: () {
+                    Navigator.pop(context); // Fecha o drawer
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        // Navega para a tela que modificamos
+                        builder: (context) => const DailyGoalListPage(entity: 'Metas Diárias'),
                       ),
                     );
                   },
