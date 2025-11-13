@@ -1,6 +1,6 @@
-// Conteúdo para: lib/features/daily_goals/infrastructure/daily_goal_repository.dart
+// Conteúdo CORRIGIDO para: lib/features/daily_goals/infrastructure/daily_goal_repository.dart
 
-import 'package.flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:mood_journal/data/dtos/daily_goal_dto.dart';
 import 'package:mood_journal/data/mappers/daily_goal_mapper.dart';
 import 'package:mood_journal/domain/entities/daily_goal_entity.dart';
@@ -58,7 +58,7 @@ class DailyGoalRepository extends StateNotifier<List<DailyGoalEntity>> {
     }
   }
 
-  /// Método para a Feature 2: Incrementar meta de humor
+  /// Método para a Feature 2 (será usado depois)
   Future<void> incrementMoodEntryGoal(DateTime date) async {
     // Encontra a meta de "Registros de Humor" para a data específica
     final goalToUpdate = state.firstWhere(
@@ -76,16 +76,17 @@ class DailyGoalRepository extends StateNotifier<List<DailyGoalEntity>> {
         userId: '',
         type: GoalType.moodEntries,
         targetValue: 1,
-        currentValue: -1,
+        currentValue: -1, // Flag para "não encontrado"
         date: date,
         isCompleted: false,
-      ), // Retorna uma entidade "vazia" se não encontrar
+      ), 
     );
 
     // Se encontrou uma meta válida (currentValue >= 0)
     if (goalToUpdate.currentValue >= 0) {
       final updatedGoal = goalToUpdate.copyWith(
         currentValue: goalToUpdate.currentValue + 1,
+        isCompleted: (goalToUpdate.currentValue + 1) >= goalToUpdate.targetValue,
       );
       // Salva a meta atualizada
       await upsertGoal(updatedGoal);
